@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EMS – Employees</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<script src="sidebar.js" data-page="employees"></script>
+
+<style>
+:root {
+  --blue-main:   #1a5dc8;
+  --blue-light:  #e8f0fd;
+  --text-main:   #111827;
+  --text-muted:  #6b7280;
+  --border:      #e5e7eb;
+  --white:       #ffffff;
+  --green:       #16a34a;
+  --green-light: #f0fdf4;
+  --red:         #dc2626;
+  --red-light:   #fef2f2;
+  --bg-page:     #f0f2f8;
+}
+* { box-sizing: border-box; }
+body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg-page); margin: 0; }
+
+.page-header {
+  display: flex; align-items: center;
+  justify-content: space-between; margin-bottom: 24px;
+}
+.page-header-left h1 { font-size: 22px; font-weight: 700; color: var(--text-main); margin: 0; }
+.page-header-left p  { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+
+.breadcrumb-bar {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-muted); margin-bottom: 6px;
+}
+.breadcrumb-bar a { color: var(--blue-main); text-decoration: none; }
+.breadcrumb-bar i { font-size: 10px; }
+
+.panel {
+  background: var(--white); border-radius: 14px;
+  border: 1px solid var(--border); overflow: hidden;
+}
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 22px; border-bottom: 1px solid var(--border);
+  flex-wrap: wrap; gap: 12px;
+}
+.panel-title { font-size: 15px; font-weight: 700; color: var(--text-main); }
+
+.search-wrap {
+  display: flex; align-items: center;
+  background: var(--bg-page); border: 1px solid var(--border);
+  border-radius: 10px; padding: 0 14px; gap: 8px; height: 38px; width: 240px;
+}
+.search-wrap i { color: var(--text-muted); font-size: 14px; }
+.search-wrap input {
+  border: none; background: transparent; outline: none;
+  font-size: 13px; color: var(--text-main); width: 100%; font-family: inherit;
+}
+
+table { width: 100%; border-collapse: collapse; }
+thead th {
+  padding: 12px 18px; text-align: left;
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .6px; color: var(--text-muted);
+  background: var(--bg-page); border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 14px 18px; font-size: 13.5px;
+  border-bottom: 1px solid var(--border); color: var(--text-main);
+  vertical-align: middle;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr { transition: background .15s; }
+tbody tr:hover { background: var(--blue-light); }
+.empty-row td { text-align: center; padding: 48px; color: var(--text-muted); font-size: 14px; }
+
+.badge-dept {
+  display: inline-block; padding: 3px 10px;
+  background: var(--blue-light); color: var(--blue-main);
+  border-radius: 20px; font-size: 12px; font-weight: 600;
+}
+
+.fp-status {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 10px;
+  font-size: 17px; cursor: default; transition: all .2s;
+}
+.fp-status.enrolled  { background: var(--green-light); color: var(--green); }
+.fp-status.not-enrolled {
+  background: var(--red-light); color: var(--red);
+  cursor: pointer; animation: fp-pulse 2s ease-in-out infinite;
+}
+.fp-status.not-enrolled:hover { background: var(--red); color: #fff; transform: scale(1.1); }
+@keyframes fp-pulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,.3); }
+  50%      { box-shadow: 0 0 0 6px rgba(220,38,38,0); }
+}
+.fp-tooltip { position: relative; }
+.fp-tooltip::after {
+  content: attr(data-tip);
+  position: absolute; bottom: calc(100% + 6px); left: 50%;
+  transform: translateX(-50%);
+  background: var(--text-main); color: #fff;
+  font-size: 11px; font-weight: 600; white-space: nowrap;
+  padding: 4px 9px; border-radius: 6px; pointer-events: none;
+  opacity: 0; transition: opacity .2s;
+}
+.fp-tooltip:hover::after { opacity: 1; }
+
+.btn-view {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 8px;
+  background: var(--blue-light); color: var(--blue-main);
+  border: none; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all .2s; text-decoration: none; white-space: nowrap;
+}
+.btn-view:hover { background: var(--blue-main); color: #fff; }
+
+.add-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 18px; border-radius: 10px;
+  background: var(--blue-main); color: #fff;
+  border: none; font-size: 13.5px; font-weight: 600;
+  cursor: pointer; text-decoration: none; transition: all .2s;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.add-btn:hover { background: #1649a8; color: #fff; }
+
+/* ── Modal ── */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.45); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000; opacity: 0; pointer-events: none; transition: opacity .25s;
+}
+.modal-backdrop.active { opacity: 1; pointer-events: all; }
+
+.modal-box {
+  background: var(--white); border-radius: 18px;
+  padding: 28px; width: 100%; max-width: 460px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.18);
+  transform: translateY(20px); transition: transform .25s;
+  max-height: 90vh; overflow-y: auto;
+}
+.modal-backdrop.active .modal-box { transform: translateY(0); }
+
+.modal-title { font-size: 17px; font-weight: 700; color: var(--text-main); margin: 0 0 4px; }
+.modal-sub   { font-size: 13px; color: var(--text-muted); margin: 0 0 22px; }
+
+.form-label {
+  display: block; font-size: 12px; font-weight: 700;
+  color: var(--text-muted); margin-bottom: 6px;
+  text-transform: uppercase; letter-spacing: .4px;
+}
+.form-control {
+  width: 100%; font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 13.5px; font-weight: 500; color: var(--text-main);
+  border: 1.5px solid var(--border); border-radius: 10px;
+  padding: 10px 13px; outline: none;
+  transition: border-color .2s, box-shadow .2s;
+  background: var(--white); appearance: none; -webkit-appearance: none;
+}
+.form-control:focus { border-color: var(--blue-main); box-shadow: 0 0 0 3px rgba(26,93,200,.1); }
+.form-control:disabled { background: var(--bg-page); color: var(--text-muted); cursor: not-allowed; }
+
+/* Select with chevron */
+.select-wrap { position: relative; }
+.select-wrap::after {
+  content: '\F282'; font-family: 'bootstrap-icons';
+  position: absolute; right: 13px; top: 50%; transform: translateY(-50%);
+  color: var(--text-muted); font-size: 13px; pointer-events: none;
+  transition: opacity .2s;
+}
+.select-wrap.loading::after {
+  content: ''; width: 14px; height: 14px;
+  border: 2px solid var(--border); border-top-color: var(--blue-main);
+  border-radius: 50%; animation: spin .6s linear infinite;
+  right: 12px; top: 50%; margin-top: -7px; position: absolute;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.select-wrap select.form-control { padding-right: 34px; cursor: pointer; }
+.select-wrap select.form-control:disabled { cursor: not-allowed; }
+
+.form-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.form-group { margin-bottom: 14px; }
+
+.modal-section-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .6px; color: var(--text-muted);
+  margin: 18px 0 12px; display: flex; align-items: center; gap: 8px;
+}
+.modal-section-label::before,
+.modal-section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+.device-sel-wrap {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg-page); border: 1.5px solid var(--border);
+  border-radius: 10px; padding: 9px 13px; margin-bottom: 18px;
+}
+.device-sel-wrap i { color: var(--blue-main); font-size: 15px; flex-shrink: 0; }
+.device-sel-wrap select {
+  font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 600;
+  border: none; background: transparent; outline: none;
+  color: var(--text-main); width: 100%; cursor: pointer;
+}
+
+.btn-enroll {
+  width: 100%; padding: 12px; border-radius: 10px;
+  background: var(--blue-main); color: #fff;
+  border: none; font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 14px; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: all .2s; margin-top: 6px;
+}
+.btn-enroll:hover:not(:disabled) { background: #1649a8; transform: translateY(-1px); }
+.btn-enroll:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+.btn-cancel {
+  width: 100%; padding: 10px; border-radius: 10px;
+  background: var(--bg-page); color: var(--text-muted);
+  border: 1.5px solid var(--border); font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  margin-top: 8px; transition: all .2s;
+}
+.btn-cancel:hover { background: var(--border); color: var(--text-main); }
+
+.enroll-status {
+  margin-top: 14px; padding: 11px 14px; border-radius: 10px;
+  font-size: 13px; font-weight: 600; display: none;
+}
+.enroll-status.info    { background: var(--blue-light);  color: var(--blue-main); display: block; }
+.enroll-status.success { background: var(--green-light); color: var(--green);     display: block; }
+.enroll-status.error   { background: var(--red-light);   color: var(--red);       display: block; }
+
+/* Skeleton */
+.skel { background: #f0f1f3; border-radius: 6px; animation: shimmer 1.4s infinite; display: inline-block; }
+@keyframes shimmer { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+@media (max-width: 600px) {
+  .form-row { grid-template-columns: 1fr; }
+  .modal-box { margin: 16px; padding: 22px; }
+}
+</style>
+</head>
+<body>
+
+<main class="ems-main" id="pageContent">
+
+  <div class="breadcrumb-bar">
+    <a href="Dashboard.html">Dashboard</a>
+    <i class="bi bi-chevron-right"></i>
+    <span>Employees</span>
+  </div>
+
+  <div class="page-header">
+    <div class="page-header-left">
+      <h1>Employees</h1>
+      <p>View and manage all employees</p>
+    </div>
+    <a href="add-employee.html" class="add-btn">
+      <i class="bi bi-person-plus-fill"></i> Add Employee
+    </a>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Employee List</span>
+      <div class="search-wrap">
+        <i class="bi bi-search"></i>
+        <input type="text" id="searchInput" placeholder="Search employees...">
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th><th>Name</th><th>Serial No.</th>
+            <th>Gender</th><th>Department</th><th>Fingerprint</th><th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="employeeTable">
+          <!-- skeleton rows -->
+          <tr><td><div class="skel" style="width:30px;height:13px"></div></td><td><div class="skel" style="width:120px;height:13px"></div></td><td><div class="skel" style="width:70px;height:13px"></div></td><td><div class="skel" style="width:50px;height:13px"></div></td><td><div class="skel" style="width:90px;height:22px;border-radius:20px"></div></td><td><div class="skel" style="width:34px;height:34px;border-radius:10px"></div></td><td><div class="skel" style="width:100px;height:32px;border-radius:8px"></div></td></tr>
+          <tr><td><div class="skel" style="width:30px;height:13px"></div></td><td><div class="skel" style="width:100px;height:13px"></div></td><td><div class="skel" style="width:70px;height:13px"></div></td><td><div class="skel" style="width:50px;height:13px"></div></td><td><div class="skel" style="width:90px;height:22px;border-radius:20px"></div></td><td><div class="skel" style="width:34px;height:34px;border-radius:10px"></div></td><td><div class="skel" style="width:100px;height:32px;border-radius:8px"></div></td></tr>
+          <tr><td><div class="skel" style="width:30px;height:13px"></div></td><td><div class="skel" style="width:140px;height:13px"></div></td><td><div class="skel" style="width:70px;height:13px"></div></td><td><div class="skel" style="width:50px;height:13px"></div></td><td><div class="skel" style="width:90px;height:22px;border-radius:20px"></div></td><td><div class="skel" style="width:34px;height:34px;border-radius:10px"></div></td><td><div class="skel" style="width:100px;height:32px;border-radius:8px"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── Enroll Modal ── -->
+<div class="modal-backdrop" id="enrollModal">
+  <div class="modal-box">
+    <div class="modal-title">
+      <i class="bi bi-fingerprint me-2" style="color:var(--blue-main)"></i>Enroll Fingerprint
+    </div>
+    <div class="modal-sub" id="modalSub">Assign a fingerprint to this employee</div>
+
+    <!-- Device -->
+    <div class="device-sel-wrap">
+      <i class="bi bi-cpu-fill"></i>
+      <select id="modalDeviceSelect"></select>
+    </div>
+
+    <!-- Employee info -->
+    <div class="form-row">
+      <div>
+        <label class="form-label">Finger ID (1–127)</label>
+        <input type="number" id="enrId" class="form-control" min="1" max="127" placeholder="e.g. 5">
+      </div>
+      <div>
+        <label class="form-label">Employee Name</label>
+        <input type="text" id="enrName" class="form-control" disabled>
+      </div>
+    </div>
+
+    <!-- Location cascades -->
+    <div class="modal-section-label">Location</div>
+
+    <div class="form-group">
+      <label class="form-label">Company</label>
+      <div class="select-wrap" id="companyWrap">
+        <select id="enrCompany" class="form-control" disabled>
+          <option value="">— Select Company —</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Branch</label>
+      <div class="select-wrap" id="branchWrap">
+        <select id="enrBranch" class="form-control" disabled>
+          <option value="">— Select Branch —</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Department</label>
+      <div class="select-wrap" id="deptWrap">
+        <select id="enrDept" class="form-control" disabled>
+          <option value="">— Select Department —</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="btn-enroll" id="enrollBtn" onclick="submitEnroll()">
+      <i class="bi bi-fingerprint"></i> Start Enrollment
+    </button>
+    <button class="btn-cancel" onclick="closeEnrollModal()">Cancel</button>
+
+    <div class="enroll-status" id="enrollStatus"></div>
+  </div>
+</div>
+
+<script type="module">
+import { db } from "./js/firebase-config.js";
+import { ref, set, onValue }
+  from "https://www.gstatic.com/firebasejs/10.0.0/firebase-database.js";
+
+const API_URL      = "https://emsapi.disagglobal.com/api";
+const token        = localStorage.getItem("token");
+const departmentId = localStorage.getItem("department_id");
+if (!token) window.location.href = "index.html";
+
+let allEmployees = [];
+let allBranches  = [];   // cached after first load
+let allDepts     = [];   // cached after first load
+let enrollTarget = null;
+
+// ── Devices ──
+function loadDevices() {
+  try { return JSON.parse(localStorage.getItem("ems_devices") || "[]"); } catch { return []; }
+}
+let devices = loadDevices();
+if (!devices.length) devices = [{ token: "0e3c4f943db50534", name: "Office Main" }];
+
+(function buildModalSelect() {
+  const sel = document.getElementById("modalDeviceSelect");
+  devices.forEach(d => {
+    const o = document.createElement("option");
+    o.value = d.token; o.text = d.name;
+    sel.appendChild(o);
+  });
+})();
+
+// ── Generic fetch helper ──
+async function apiFetch(path) {
+  const res = await fetch(API_URL + path, {
+    headers: { "Accept": "application/json", "Authorization": "Bearer " + token }
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return res.json();
+}
+
+// Normalise response — API returns plain array or { data: [] }
+function toList(res) { return Array.isArray(res) ? res : (res.data || []); }
+
+// ── Populate select helper ──
+function fillSelect(selEl, items, labelKey, placeholder) {
+  selEl.innerHTML = `<option value="">${placeholder}</option>`;
+  items.forEach(item => {
+    const o = document.createElement("option");
+    o.value = item.id;
+    o.textContent = item[labelKey] || item.name || item.id;
+    selEl.appendChild(o);
+  });
+  selEl.disabled = items.length === 0;
+}
+
+// ── Load companies (GET /company) ──
+async function loadCompanies() {
+  const sel  = document.getElementById("enrCompany");
+  const wrap = document.getElementById("companyWrap");
+  sel.innerHTML = `<option value="">Loading…</option>`;
+  sel.disabled  = true;
+  wrap.classList.add("loading");
+  try {
+    const data = await apiFetch("/company");
+    const list = toList(data);
+    fillSelect(sel, list, "name", "— Select Company —");
+    sel.disabled = false;
+  } catch {
+    sel.innerHTML = `<option value="">Failed to load</option>`;
+  } finally {
+    wrap.classList.remove("loading");
+  }
+}
+
+// ── Load all branches once, cache them (GET /branch) ──
+async function ensureBranches() {
+  if (allBranches.length) return;
+  const data   = await apiFetch("/branch");
+  // branch_name is the label field per BranchController
+  allBranches  = toList(data);
+}
+
+// ── Load all departments once, cache them (GET /departments) ──
+async function ensureDepts() {
+  if (allDepts.length) return;
+  const data = await apiFetch("/departments");
+  allDepts   = toList(data);
+}
+
+// ── Company → filter branches ──
+document.getElementById("enrCompany").addEventListener("change", async function () {
+  const branchSel  = document.getElementById("enrBranch");
+  const deptSel    = document.getElementById("enrDept");
+  const branchWrap = document.getElementById("branchWrap");
+
+  // Reset downstream
+  fillSelect(branchSel, [], "branch_name", "— Select Branch —");
+  branchSel.disabled = true;
+  fillSelect(deptSel,   [], "department_name", "— Select Department —");
+  deptSel.disabled   = true;
+
+  if (!this.value) return;
+
+  branchSel.innerHTML = `<option value="">Loading…</option>`;
+  branchWrap.classList.add("loading");
+
+  try {
+    await ensureBranches();
+    const filtered = allBranches.filter(b => String(b.company_id) === String(this.value));
+    fillSelect(branchSel, filtered, "branch_name", "— Select Branch —");
+    branchSel.disabled = filtered.length === 0;
+    if (filtered.length === 0) {
+      branchSel.innerHTML = `<option value="">No branches found</option>`;
+    }
+  } catch {
+    branchSel.innerHTML = `<option value="">Failed to load</option>`;
+  } finally {
+    branchWrap.classList.remove("loading");
+  }
+});
+
+// ── Branch → filter departments ──
+document.getElementById("enrBranch").addEventListener("change", async function () {
+  const deptSel  = document.getElementById("enrDept");
+  const deptWrap = document.getElementById("deptWrap");
+
+  fillSelect(deptSel, [], "department_name", "— Select Department —");
+  deptSel.disabled = true;
+
+  if (!this.value) return;
+
+  deptSel.innerHTML = `<option value="">Loading…</option>`;
+  deptWrap.classList.add("loading");
+
+  try {
+    await ensureDepts();
+    const filtered = allDepts.filter(d => String(d.branch_id) === String(this.value));
+    fillSelect(deptSel, filtered, "department_name", "— Select Department —");
+    deptSel.disabled = filtered.length === 0;
+    if (filtered.length === 0) {
+      deptSel.innerHTML = `<option value="">No departments found</option>`;
+    }
+  } catch {
+    deptSel.innerHTML = `<option value="">Failed to load</option>`;
+  } finally {
+    deptWrap.classList.remove("loading");
+  }
+});
+
+// ── Load employees ──
+async function loadEmployees() {
+  try {
+    const res    = await fetch(API_URL + "/users?department_id=" + departmentId, {
+      headers: { "Accept": "application/json", "Authorization": "Bearer " + token }
+    });
+    const result = await res.json();
+    allEmployees  = result.data || [];
+    renderTable(allEmployees);
+  } catch {
+    document.getElementById("employeeTable").innerHTML =
+      `<tr class="empty-row"><td colspan="7"><i class="bi bi-exclamation-triangle me-2"></i>Failed to load employees</td></tr>`;
+  }
+}
+
+// ── Render table ──
+function renderTable(list) {
+  if (!list.length) {
+    document.getElementById("employeeTable").innerHTML =
+      `<tr class="empty-row"><td colspan="7"><i class="bi bi-people me-2"></i>No employees found</td></tr>`;
+    return;
+  }
+  document.getElementById("employeeTable").innerHTML = list.map(u => {
+    const hasFingerprint = u.fingerprint_id && u.fingerprint_id !== "0" && u.fingerprint_id !== "";
+    const name = u.username || u.name || "";
+
+    const fpIcon = hasFingerprint
+      ? `<div class="fp-status enrolled fp-tooltip" data-tip="Enrolled — ID ${u.fingerprint_id}">
+           <i class="bi bi-fingerprint"></i></div>`
+      : `<div class="fp-status not-enrolled fp-tooltip" data-tip="Not enrolled — click to enroll"
+              onclick="openEnrollModal(${JSON.stringify({ id: u.id, name, company_name: u.company_name, department_id: u.department_id }).replace(/"/g, '&quot;')})">
+           <i class="bi bi-fingerprint"></i></div>`;
+
+    return `<tr>
+      <td><span style="font-size:12px;color:var(--text-muted)">#${u.id ?? ""}</span></td>
+      <td><strong>${name}</strong></td>
+      <td>${u.serialnumber ?? ""}</td>
+      <td>${u.gender ?? ""}</td>
+      <td><span class="badge-dept">${u.department_name ?? ""}</span></td>
+      <td>${fpIcon}</td>
+      <td>
+        <button class="btn-view" onclick="viewAttendance('${u.fingerprint_id}')">
+          <i class="bi bi-calendar-check"></i> Attendance
+        </button>
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+// ── Search ──
+document.getElementById("searchInput").addEventListener("input", function () {
+  const kw = this.value.toLowerCase();
+  renderTable(allEmployees.filter(u =>
+    `${u.id} ${u.username ?? u.name} ${u.serialnumber} ${u.department_name}`.toLowerCase().includes(kw)
+  ));
+});
+
+// ── View attendance ──
+window.viewAttendance = fp => {
+  window.location.href = "attendance-logs.html?fingerprint_id=" + fp;
+};
+
+// ── Load branches for a given company_id ──
+async function loadBranchesForCompany(companyId) {
+  const branchSel  = document.getElementById("enrBranch");
+  const branchWrap = document.getElementById("branchWrap");
+  branchSel.innerHTML = `<option value="">Loading…</option>`;
+  branchSel.disabled  = true;
+  branchWrap.classList.add("loading");
+  try {
+    await ensureBranches();
+    const filtered = allBranches.filter(b => String(b.company_id) === String(companyId));
+    fillSelect(branchSel, filtered, "branch_name", "— Select Branch —");
+    branchSel.disabled = filtered.length === 0;
+    if (filtered.length === 0) branchSel.innerHTML = `<option value="">No branches found</option>`;
+  } catch {
+    branchSel.innerHTML = `<option value="">Failed to load</option>`;
+  } finally {
+    branchWrap.classList.remove("loading");
+  }
+}
+
+// ── Load departments for a given branch_id ──
+async function loadDeptsForBranch(branchId) {
+  const deptSel  = document.getElementById("enrDept");
+  const deptWrap = document.getElementById("deptWrap");
+  deptSel.innerHTML = `<option value="">Loading…</option>`;
+  deptSel.disabled  = true;
+  deptWrap.classList.add("loading");
+  try {
+    await ensureDepts();
+    const filtered = allDepts.filter(d => String(d.branch_id) === String(branchId));
+    fillSelect(deptSel, filtered, "department_name", "— Select Department —");
+    deptSel.disabled = filtered.length === 0;
+    if (filtered.length === 0) deptSel.innerHTML = `<option value="">No departments found</option>`;
+  } catch {
+    deptSel.innerHTML = `<option value="">Failed to load</option>`;
+  } finally {
+    deptWrap.classList.remove("loading");
+  }
+}
+
+// ── Open enroll modal ──
+window.openEnrollModal = async (emp) => {
+  enrollTarget = emp;
+
+  document.getElementById("enrId").value   = "";
+  document.getElementById("enrName").value = emp.name;
+
+  // Reset all cascades
+  const companySel = document.getElementById("enrCompany");
+  const branchSel  = document.getElementById("enrBranch");
+  const deptSel    = document.getElementById("enrDept");
+  companySel.innerHTML = `<option value="">— Select Company —</option>`;
+  companySel.disabled  = true;
+  branchSel.innerHTML  = `<option value="">— Select Branch —</option>`;
+  branchSel.disabled   = true;
+  deptSel.innerHTML    = `<option value="">— Select Department —</option>`;
+  deptSel.disabled     = true;
+
+  document.getElementById("enrollStatus").className   = "enroll-status";
+  document.getElementById("enrollStatus").textContent = "";
+  document.getElementById("enrollBtn").disabled       = false;
+  document.getElementById("enrollBtn").innerHTML      = `<i class="bi bi-fingerprint"></i> Start Enrollment`;
+  document.getElementById("modalSub").textContent     = `Enroll fingerprint for ${emp.name}`;
+
+  document.getElementById("enrollModal").classList.add("active");
+
+  // 1. Load companies
+  await loadCompanies();
+
+  // 2. Auto-select company by name
+  if (emp.company_name) {
+    const opts  = Array.from(companySel.options);
+    const match = opts.find(o => o.text.trim().toLowerCase() === emp.company_name.trim().toLowerCase());
+    if (match) {
+      companySel.value = match.value;
+
+      // 3. Load + auto-select branch via dept's branch_id
+      await ensureDepts();
+      const dept = allDepts.find(d => String(d.id) === String(emp.department_id));
+      if (dept && dept.branch_id) {
+        await loadBranchesForCompany(match.value);
+        branchSel.value = String(dept.branch_id);
+
+        // 4. Load + auto-select department
+        await loadDeptsForBranch(String(dept.branch_id));
+        deptSel.value = String(emp.department_id);
+      } else {
+        await loadBranchesForCompany(match.value);
+      }
+    }
+  }
+};
+
+window.closeEnrollModal = () => {
+  document.getElementById("enrollModal").classList.remove("active");
+  enrollTarget = null;
+};
+
+document.getElementById("enrollModal").addEventListener("click", e => {
+  if (e.target === document.getElementById("enrollModal")) closeEnrollModal();
+});
+
+// ── Get selected option text ──
+function selText(id) {
+  const el = document.getElementById(id);
+  return el.options[el.selectedIndex]?.text || "";
+}
+
+// ── Submit enroll ──
+window.submitEnroll = async () => {
+  const idVal     = document.getElementById("enrId").value.trim();
+  const nameVal   = document.getElementById("enrName").value.trim();
+  const companyId = document.getElementById("enrCompany").value;
+  const branchId  = document.getElementById("enrBranch").value;
+  const deptId    = document.getElementById("enrDept").value;
+  const device    = document.getElementById("modalDeviceSelect").value;
+  const btn       = document.getElementById("enrollBtn");
+
+  if (!idVal)     { showStatus("error", "Please enter a Finger ID (1–127)"); return; }
+  const idNum = parseInt(idVal);
+  if (idNum < 1 || idNum > 127) { showStatus("error", "ID must be between 1 and 127"); return; }
+  if (!nameVal)   { showStatus("error", "Employee name is required"); return; }
+  if (!companyId) { showStatus("error", "Please select a Company"); return; }
+  if (!branchId)  { showStatus("error", "Please select a Branch"); return; }
+  if (!deptId)    { showStatus("error", "Please select a Department"); return; }
+  if (!device)    { showStatus("error", "Please select a device"); return; }
+
+  const companyName = selText("enrCompany");
+  const branchName  = selText("enrBranch");
+  const deptName    = selText("enrDept");
+
+  btn.disabled  = true;
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Saving…`;
+
+  try {
+    // 1. Firebase
+    await set(ref(db, `users/${idNum}`), {
+      name:            nameVal,
+      company_id:      companyId,
+      company_name:    companyName,
+      branch_id:       branchId,
+      branch_name:     branchName,
+      department_id:   deptId,
+      department_name: deptName
+    });
+
+    // 2. Update employee fingerprint_id via REST API
+    const apiRes = await fetch(API_URL + "/manageusers/" + enrollTarget.id, {
+      method: "PUT",
+      headers: {
+        "Content-Type":  "application/json",
+        "Accept":        "application/json",
+        "Authorization": "Bearer " + token
+      },
+      body: JSON.stringify({
+        fingerprint_id: idNum
+      })
+    });
+    const apiResult = await apiRes.json();
+    if (!apiRes.ok) {
+      showStatus("error", apiResult.message || "Failed to update fingerprint ID.");
+      btn.disabled  = false;
+      btn.innerHTML = `<i class="bi bi-fingerprint"></i> Start Enrollment`;
+      return;
+    }
+
+    // 3. Device command via Firebase
+    // 3. Switch device to ENROLL mode
+await set(ref(db, `devices/${device}/mode`), "enroll");
+
+// Give device 1 second to switch mode
+await new Promise(resolve => setTimeout(resolve, 1000));
+
+// Send enroll command
+await set(ref(db, `devices/${device}/commands/enroll`), idNum);
+
+    showStatus("info",
+      `⏳ Command sent. Ask ${nameVal} to place finger on the scanner within 60 seconds.`
+    );
+    btn.innerHTML = `<i class="bi bi-check-circle-fill"></i> Command Sent`;
+
+    // 4. Listen for confirmation
+    const enrRef = ref(db, `devices/${device}/enrollment_status`);
+    const unsub  = onValue(enrRef, async (snap) => {
+      const e = snap.val();
+      if (!e) return;
+      if (String(e.FingerID) === String(idNum)) {
+        if (e.status?.toLowerCase().includes("success")) {
+
+  // Back to attendance mode
+  await set(ref(db, `devices/${device}/mode`), "attendance");
+
+  showStatus(
+    "success",
+    `✅ Enrolled successfully! ID ${idNum} — ${nameVal}`
+  );
+
+  btn.innerHTML =
+    `<i class="bi bi-check-circle-fill"></i> Enrolled!`;
+
+  setTimeout(() => {
+    loadEmployees();
+    closeEnrollModal();
+  }, 1800);
+} else if (e.status?.toLowerCase().includes("fail")) {
+          showStatus("error", `❌ Enrollment failed. Please try again.`);
+          btn.disabled  = false;
+          btn.innerHTML = `<i class="bi bi-fingerprint"></i> Retry`;
+        }
+        unsub();
+      }
+    });
+
+  } catch (err) {
+    console.error(err);
+    showStatus("error", "Failed to send enrollment command. Check connection.");
+    btn.disabled  = false;
+    btn.innerHTML = `<i class="bi bi-fingerprint"></i> Start Enrollment`;
+  }
+};
+
+function showStatus(type, msg) {
+  const el = document.getElementById("enrollStatus");
+  el.className   = `enroll-status ${type}`;
+  el.textContent = msg;
+}
+
+// ── Boot ──
+loadEmployees();
+</script>
+
+</body>
+</html>
