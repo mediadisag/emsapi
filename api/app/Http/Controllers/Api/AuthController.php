@@ -15,6 +15,72 @@ use Illuminate\Support\Facades\Password;
 
 class AuthController extends Controller
 {
+    /**
+     * Build the role-specific extra fields (company_id/name, branch_id,
+     * department_id/name, fingerprint_id) that get merged into the user
+     * payload for both login() and user().
+     *
+     * Table confirmed from DB: `department` (singular), column `department_name`.
+     */
+    private function buildExtraData(User $user): array
+    {
+        $extraData = [];
+
+        // Always expose the user's own device_uid (used by frontend to scope
+        // the fingerprint-enroll device dropdown for non-Super-Admin roles)
+        $extraData['device_uid'] = $user->device_uid ?? null;
+
+        // Company Admin → show company_id + company_name
+        if ($user->user_types_id == 2) {
+            $company = DB::table('company_users')
+                ->join('company', 'company.id', '=', 'company_users.company_id')
+                ->where('company_users.users_id', $user->id)
+                ->select('company.id as company_id', 'company.name')
+                ->first();
+
+            if ($company) {
+                $extraData['company_id']   = $company->company_id;
+                $extraData['company_name'] = $company->name;
+            } else {
+                $extraData['company_id']   = $user->company_id ?? null;
+                $extraData['company_name'] = null;
+            }
+        }
+
+        // Branch Admin → show branch_id
+        if ($user->user_types_id == 3) {
+            $extraData['branch_id'] = $user->branch_id ?? null;
+        }
+
+        // Department Admin → show department_id + department_name
+        // ✅ FIX: department_name added so the frontend (dashboard.html) can
+        // scope Firebase attendance data (which only stores a "company"
+        // string per user, not an id) to the logged-in admin's own
+        // department instead of showing every employee on the shared device.
+        if ($user->user_types_id == 4) {
+            $extraData['department_id'] = $user->department_id ?? null;
+
+            $dept = DB::table('department')
+                ->where('id', $user->department_id)
+                ->select('department_name')
+                ->first();
+
+            $extraData['department_name'] = $dept->department_name ?? null;
+        }
+
+        // Employee (Role 5) → show fingerprint_id so Dashboard.html
+        // (and any other page) can scope attendance queries to this
+        // employee's own records only. Without this, buildScopeParams()
+        // on the frontend always found currentUser.fingerprint_id undefined,
+        // so Employees silently fell through to "no scope" → saw EVERYONE's
+        // attendance data in DB mode (previous dates).
+        if ($user->user_types_id == 5) {
+            $extraData['fingerprint_id'] = $user->fingerprint_id ?? null;
+        }
+
+        return $extraData;
+    }
+
     public function login(Request $request)
     {
         $request->validate([
@@ -31,47 +97,16 @@ class AuthController extends Controller
             return response()->json(['message' => 'Password mismatch'], 401);
         }
 
+        // NOTE: previously, Company Admin's "name" was overwritten with the
+        // company name here. That's kept as-is for backward compatibility
+        // (in case other pages rely on `user.name` showing the company),
+        // but the company name is now ALSO available separately as
+        // `company_name` so it doesn't need to be inferred from `name`.
         $name      = $user->username;
-        $extraData = [];
+        $extraData = $this->buildExtraData($user);
 
-        // Always expose the user's own device_uid (used by frontend to scope
-        // the fingerprint-enroll device dropdown for non-Super-Admin roles)
-        $extraData['device_uid'] = $user->device_uid ?? null;
-
-        // Company Admin → Replace name with company name & show only company_id
-        if ($user->user_types_id == 2) {
-            $company = DB::table('company_users')
-                ->join('company', 'company.id', '=', 'company_users.company_id')
-                ->where('company_users.users_id', $user->id)
-                ->select('company.id as company_id', 'company.name')
-                ->first();
-
-            if ($company) {
-                $name                   = $company->name;
-                $extraData['company_id'] = $company->company_id;
-            } else {
-                $extraData['company_id'] = $user->company_id ?? null;
-            }
-        }
-
-        // Branch Admin → show only branch_id
-        if ($user->user_types_id == 3) {
-            $extraData['branch_id'] = $user->branch_id ?? null;
-        }
-
-        // Department Admin → show department_id
-        if ($user->user_types_id == 4) {
-            $extraData['department_id'] = $user->department_id ?? null;
-        }
-
-        // ✅ FIX: Employee (Role 5) → show fingerprint_id so Dashboard.html
-        // (and any other page) can scope attendance queries to this
-        // employee's own records only. Without this, buildScopeParams()
-        // on the frontend always found currentUser.fingerprint_id undefined,
-        // so Employees silently fell through to "no scope" → saw EVERYONE's
-        // attendance data in DB mode (previous dates).
-        if ($user->user_types_id == 5) {
-            $extraData['fingerprint_id'] = $user->fingerprint_id ?? null;
+        if ($user->user_types_id == 2 && !empty($extraData['company_name'])) {
+            $name = $extraData['company_name'];
         }
 
         $token = $user->createToken('user_token')->plainTextToken;
@@ -100,42 +135,12 @@ class AuthController extends Controller
     public function user(Request $request)
     {
         $user = $request->user(); // Gets authenticated user from Sanctum token
-        
+
         $name      = $user->username;
-        $extraData = [];
+        $extraData = $this->buildExtraData($user);
 
-        // Always expose device_uid
-        $extraData['device_uid'] = $user->device_uid ?? null;
-
-        // Company Admin
-        if ($user->user_types_id == 2) {
-            $company = DB::table('company_users')
-                ->join('company', 'company.id', '=', 'company_users.company_id')
-                ->where('company_users.users_id', $user->id)
-                ->select('company.id as company_id', 'company.name')
-                ->first();
-
-            if ($company) {
-                $name                   = $company->name;
-                $extraData['company_id'] = $company->company_id;
-            } else {
-                $extraData['company_id'] = $user->company_id ?? null;
-            }
-        }
-
-        // Branch Admin
-        if ($user->user_types_id == 3) {
-            $extraData['branch_id'] = $user->branch_id ?? null;
-        }
-
-        // Department Admin
-        if ($user->user_types_id == 4) {
-            $extraData['department_id'] = $user->department_id ?? null;
-        }
-
-        // Employee
-        if ($user->user_types_id == 5) {
-            $extraData['fingerprint_id'] = $user->fingerprint_id ?? null;
+        if ($user->user_types_id == 2 && !empty($extraData['company_name'])) {
+            $name = $extraData['company_name'];
         }
 
         return response()->json([

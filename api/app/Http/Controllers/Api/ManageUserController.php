@@ -88,6 +88,10 @@ class ManageUserController extends Controller
                 'department.department_name',
                 'devices.device_name',
                 'users.email',
+                'users.alternative_mobile',
+                'users.bank_name',
+                'users.account_number',
+                'users.ifsc_code',
                 DB::raw('COALESCE(dept_company.name, dev_company.name) as company_name'),
             ])
             ->where('users.del_fingerid', 0)
@@ -164,6 +168,11 @@ class ManageUserController extends Controller
             'gender'          => 'required|in:Male,Female',
             'department_name' => 'required|string|exists:department,department_name',
             'user_types_id'   => 'required|integer|exists:user_types,id',
+            // ✅ NEW — bank / contact details (all optional)
+            'alternative_mobile' => 'nullable|string|max:15',
+            'bank_name'           => 'nullable|string|max:100',
+            'account_number'      => 'nullable|string|max:30',
+            'ifsc_code'           => ['nullable', 'regex:/^[A-Z]{4}0[A-Z0-9]{6}$/'],
         ];
 
         $userTypeId = (int) $request->input('user_types_id');
@@ -230,6 +239,11 @@ class ManageUserController extends Controller
             'user_types_id'  => $userTypeId,
             'company_id'     => $department->company_id,
             'branch_id'      => $department->branch_id,
+            // ✅ NEW — bank / contact details
+            'alternative_mobile' => $request->alternative_mobile,
+            'bank_name'           => $request->bank_name,
+            'account_number'      => $request->account_number,
+            'ifsc_code'           => $request->ifsc_code ? strtoupper($request->ifsc_code) : null,
         ];
 
         if ($userTypeId !== 5) {
@@ -301,6 +315,18 @@ class ManageUserController extends Controller
         }
 
         $data = $request->all();
+
+        // ✅ NEW — validate bank / contact details when present on update too
+        $request->validate([
+            'alternative_mobile' => 'nullable|string|max:15',
+            'bank_name'           => 'nullable|string|max:100',
+            'account_number'      => 'nullable|string|max:30',
+            'ifsc_code'           => ['nullable', 'regex:/^[A-Z]{4}0[A-Z0-9]{6}$/'],
+        ]);
+
+        if (isset($data['ifsc_code']) && $data['ifsc_code']) {
+            $data['ifsc_code'] = strtoupper($data['ifsc_code']);
+        }
 
         if (isset($data['department_name'])) {
             $request->validate([

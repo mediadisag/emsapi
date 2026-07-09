@@ -24,9 +24,21 @@ class DepartmentController extends Controller
         if (!$authUser) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
-    
+
+        // FIX: 'allowed_leaves' was missing from this select, so every
+        // department returned by this endpoint always looked like it had
+        // no allowed_leaves value — which made the Edit Department page
+        // fall back to the default of 20 for every department, instead of
+        // showing/saving that department's real, previously-set value.
         $query = DB::table('department')
-            ->select('department.id', 'department.department_name', 'department.company_id', 'department.branch_id','department.device_uid');
+            ->select(
+                'department.id',
+                'department.department_name',
+                'department.company_id',
+                'department.branch_id',
+                'department.device_uid',
+                'department.allowed_leaves'
+            );
 
         if ($authUser->user_types_id == 2) {
             // Company Admin
@@ -54,12 +66,11 @@ class DepartmentController extends Controller
         }elseif ($authUser->user_types_id == 1) {
         // Super Admin: no filters, show all departments
         } elseif ($authUser->user_types_id == 4) {
-            // Dept Admin → show ALL departments in their own branch(es),
-            // not just the single department they personally administer.
-            // (Fixed: previously this filtered down to only the admin's
-            // own department_id, which made the Add Employee department
-            // dropdown appear to be "missing" every other department in
-            // the same branch.)
+            // Dept Admin → show ONLY the department(s) they personally
+            // administer, not every department in their branch.
+            // (Reverted a previous change that broadened this to the whole
+            // branch — that made Department Admins see other departments'
+            // data, e.g. an admin scoped to KITEZ seeing DISAG too.)
             $departmentIds = DB::table('department_users')
                 ->where('users_id', $authUser->id)
                 ->pluck('department_id');
@@ -68,17 +79,7 @@ class DepartmentController extends Controller
                 return response()->json(['data' => [], 'total' => 0]);
             }
 
-            $branchIds = DB::table('department')
-                ->whereIn('id', $departmentIds)
-                ->pluck('branch_id')
-                ->filter()
-                ->unique();
-
-            if ($branchIds->isEmpty()) {
-                return response()->json(['data' => [], 'total' => 0]);
-            }
-
-            $query->whereIn('department.branch_id', $branchIds);
+            $query->whereIn('department.id', $departmentIds);
         }else {
             return response()->json(['error' => 'Unauthorized or no departments available'], 403);
         }
@@ -92,7 +93,7 @@ class DepartmentController extends Controller
         ]);
     }
 
-   
+
 
     public function createDepartmentWithAdmin(Request $request)
 {
@@ -104,6 +105,7 @@ class DepartmentController extends Controller
             'department_name' => 'required|string|max:255|unique:department,department_name',
             'branch_id'       => 'required|exists:branch,id',
             'device_uid'      => 'nullable|string|exists:devices,device_uid',
+            'allowed_leaves' => 'nullable|integer|min:0',
         ]);
 
         // Derive company_id from the branch
@@ -165,6 +167,7 @@ class DepartmentController extends Controller
             'company_id'      => $request->company_id,
             'branch_id'       => $request->branch_id,
             'device_uid'      => $request->device_uid ?? null,
+            'allowed_leaves'  => $request->allowed_leaves ?? null,
         ]);
 
         return response()->json([
@@ -179,122 +182,6 @@ class DepartmentController extends Controller
         ], 500);
     }
 }
-
-
-    // public function createDepartmentWithAdmin(Request $request)
-    // {
-    //     $authUser = Auth::user();
-
-    //     // Role-based access control
-    //     if ($authUser->user_types_id == 1) {
-    //         // Super Admin: can access any company/branch
-    //         $request->validate([
-    //             'department_name' => 'required|string|max:255|unique:department,department_name',
-    //             'company_id' => 'required|exists:company,id',
-    //             'branch_id' => 'nullable|exists:branch,id',
-    //             'device_name' => 'required|string|exists:devices,device_name',
-    //             'email' => 'required|email|unique:users,email',
-    //             'password' => 'required|string|min:6',
-    //         ]);
-    //     } elseif ($authUser->user_types_id == 2) {
-    //     // Company Admin: can only create departments in their assigned companies
-    //         $companyIds = DB::table('company_users')
-    //             ->where('users_id', $authUser->id)
-    //             ->pluck('company_id')
-    //             ->toArray();
-    //             if (empty($companyIds)) {
-    //                 return response()->json(['message' => 'No assigned companies found.'], 403);
-    //             }
-
-    //         $request->validate([
-    //             'department_name' => 'required|string|max:255|unique:department,department_name',
-    //             'branch_id' => 'nullable|exists:branch,id',
-    //             'device_name' => 'required|string|exists:devices,device_name',
-    //             'email' => 'required|email|unique:users,email',
-    //             'password' => 'required|string|min:6',
-    //         ]);
-    //          $request->merge([
-    //             'company_id' => $companyIds[0],
-    //         ]);
-    //     } elseif ($authUser->user_types_id == 3) {
-    //     // Branch Admin: only for their own branch
-    //         $branchId = DB::table('branch_user')
-    //             ->where('users_id', $authUser->id)
-    //             ->value('branch_id');
-
-    //         if (!$branchId) {
-    //             return response()->json(['message' => 'Branch assignment not found.'], 403);
-    //         }
-
-    //         $request->validate([
-    //             'department_name' => 'required|string|max:255|unique:department,department_name',
-    //             'device_name' => 'required|string|exists:devices,device_name',
-    //             'email' => 'required|email|unique:users,email',
-    //             'password' => 'required|string|min:6',
-    //         ]);
-
-    //         // Force company and branch assignment
-    //         $request->merge([
-    //             'branch_id' => $branchId,
-    //             'company_id' => DB::table('branch')->where('id', $branchId)->value('company_id'),
-    //         ]);
-    //     } else {
-    //         return response()->json(['message' => 'Unauthorized'], 403);
-    //     }
-
-    //     DB::beginTransaction();
-
-    //     try {
-    //         $device = DB::table('devices')->where('device_name', $request->device_name)->first();
-    //         if (!$device) {
-    //             return response()->json(['message' => 'Invalid device name provided.'], 422);
-    //         }
-    //         $deviceUid = $device->device_uid;
-
-    //     // Create department
-    //         $department = Department::create([
-    //             'department_name' => $request->department_name,
-    //             'company_id' => $request->company_id,
-    //             'branch_id' => $request->branch_id,
-    //             'device_uid' => $deviceUid,
-
-    //         ]);
-            
-    //         // Create admin user for the department
-    //         $admin = User::create([
-    //             'username' => $request->department_name.'Admin',
-    //             'email' => $request->email,
-    //             'password' => Hash::make($request->password),
-    //             'user_types_id' => 4, // Department Admin
-    //             'status' => 1,
-    //             'user_date' => now()->toDateString(),
-    //             'department_id' => $department->id,  // add this
-
-    //         ]);
-
-    //         // Link user to department
-    //         DB::table('department_users')->insert([
-    //             'department_id' => $department->id,
-    //             'users_id' => $admin->id, // use correct column name
-    //             'created_at' => now(),
-    //             'updated_at' => now(),
-    //         ]);
-
-    //         DB::commit();
-
-    //         return response()->json([
-    //             'message' => 'Department and admin user created successfully.',
-    //             'department' => $department,
-    //             'admin_user' => $admin,
-    //         ], 201);
-    //     } catch (\Exception $e) {
-    //         DB::rollBack();
-    //         return response()->json([
-    //             'message' => 'Failed to create department and user.',
-    //             'error' => $e->getMessage(),
-    //         ], 500);
-    //     }
-    // }
 
 
     public function update(Request $request, $id)
@@ -329,11 +216,18 @@ class DepartmentController extends Controller
             return response()->json(['message' => 'Unauthorized - Unknown role.'], 403);
         }
 
-    // Validation
+        // FIX: validation keys now match what the frontend actually sends.
+        // Previously this validated a 'name' field (and never validated
+        // 'device_uid' at all), but the frontend sends 'department_name'
+        // and 'device_uid' — so those two never made it into $validated
+        // and were silently skipped on every update, even though the API
+        // returned a 200 success response.
         $validated = $request->validate([
-            'name' => 'sometimes|string|max:255|unique:department,name,' . $id,
-            'company_id' => 'sometimes|exists:company,id',
-            'branch_id' => 'sometimes|exists:branch,id',
+            'department_name' => 'sometimes|string|max:255|unique:department,department_name,' . $id,
+            'company_id'      => 'sometimes|exists:company,id',
+            'branch_id'       => 'sometimes|exists:branch,id',
+            'device_uid'      => 'nullable|sometimes|string|exists:devices,device_uid',
+            'allowed_leaves'  => 'sometimes|integer|min:0',
         ]);
 
     // Update only provided fields

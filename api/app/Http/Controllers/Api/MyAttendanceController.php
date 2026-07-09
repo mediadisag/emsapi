@@ -18,6 +18,11 @@ class MyAttendanceController extends Controller
     // 5:30 — same class of bug fixed earlier in ILTService / attendance-logs).
     private const TZ = 'Asia/Kolkata';
 
+    // ✅ device_uid value written by MyAttendanceController::mark() for
+    // self check-in/out on an approved WFH day. Any log row with this
+    // device_uid was NOT punched on the office fingerprint device.
+    private const WFH_DEVICE_UID = 'WEB-SELF';
+
     /*
     |==========================================================================
     | GET /my-attendance/today
@@ -48,12 +53,21 @@ class MyAttendanceController extends Controller
                 DB::raw("MAX(CASE WHEN timeout != '00:00:00' AND timeout IS NOT NULL THEN timeout END) as last_out"),
                 DB::raw("MAX(CASE WHEN timeout != '00:00:00' AND timeout IS NOT NULL THEN 1 ELSE 0 END) as has_out"),
                 DB::raw('COUNT(*) as punch_count'),
+                // ✅ WEB-SELF means the employee self-marked today (an approved WFH
+                // day) instead of punching the office fingerprint device.
+                DB::raw("MAX(CASE WHEN device_uid = '" . self::WFH_DEVICE_UID . "' THEN 1 ELSE 0 END) as is_wfh"),
+                // ✅ Raw device_uid too, so it's directly visible for debugging
+                // (e.g. if a device sends an unexpected UID that doesn't match
+                // WFH_DEVICE_UID exactly, this shows up here instead of silently
+                // falling through to "Present").
+                DB::raw('MAX(device_uid) as device_uid'),
             ])
             ->first();
 
         $hasLog   = $log && $log->punch_count > 0;
         $checkIn  = $hasLog ? $log->first_in : null;
         $checkOut = ($hasLog && (int) $log->has_out === 1) ? $log->last_out : null;
+        $isWfh    = $hasLog && (int) $log->is_wfh === 1;
 
         $isHoliday = false;
         $holidayName = null;
@@ -79,6 +93,8 @@ class MyAttendanceController extends Controller
         $status = 'Not marked';
         if ($isHoliday && !$hasLog) {
             $status = 'Holiday';
+        } elseif ($checkIn && $isWfh) {
+            $status = 'WFH';
         } elseif ($checkIn) {
             $status = 'Present';
         }
@@ -90,6 +106,8 @@ class MyAttendanceController extends Controller
                 'check_in'     => $checkIn,
                 'check_out'    => $checkOut,
                 'status'       => $status,
+                'is_wfh'       => $isWfh,
+                'device_uid'   => $hasLog ? $log->device_uid : null,
                 'holiday_name' => $holidayName,
             ],
         ]);
@@ -145,6 +163,11 @@ class MyAttendanceController extends Controller
                 DB::raw("MAX(CASE WHEN timeout != '00:00:00' AND timeout IS NOT NULL THEN timeout END) as last_out"),
                 DB::raw("MAX(CASE WHEN timeout != '00:00:00' AND timeout IS NOT NULL THEN 1 ELSE 0 END) as has_out"),
                 DB::raw('COUNT(*) as punch_count'),
+                // ✅ WEB-SELF means the employee self-marked this day (an approved
+                // WFH day) rather than punching the office fingerprint device.
+                DB::raw("MAX(CASE WHEN device_uid = '" . self::WFH_DEVICE_UID . "' THEN 1 ELSE 0 END) as is_wfh"),
+                // ✅ Raw device_uid too, so it's directly visible for debugging.
+                DB::raw('MAX(device_uid) as device_uid'),
             ])
             ->groupBy('checkindate')
             ->get()
@@ -179,7 +202,7 @@ class MyAttendanceController extends Controller
 
         $today = Carbon::now(self::TZ)->format('Y-m-d');
         $rows  = [];
-        $statPresent = $statLate = $statAbsent = $statHoliday = 0;
+        $statPresent = $statLate = $statAbsent = $statHoliday = $statWfh = 0;
 
         foreach ($dates as $dateStr) {
             $log         = $logRows->get($dateStr);
@@ -187,6 +210,7 @@ class MyAttendanceController extends Controller
 
             $checkIn  = $log ? $log->first_in : null;
             $checkOut = ($log && (int) $log->has_out === 1) ? $log->last_out : null;
+            $isWfh    = $log && (int) $log->is_wfh === 1;
 
             $hours = null;
             if ($checkIn && $checkOut) {
@@ -200,7 +224,12 @@ class MyAttendanceController extends Controller
                 }
             }
 
-            if ($log) {
+            if ($log && $isWfh) {
+                $status = 'WFH';
+                $statWfh++;
+                // WFH days still count as present for the "Present Days" stat
+                $statPresent++;
+            } elseif ($log) {
                 $status = 'Present';
                 $statPresent++;
             } elseif ($holidayName) {
@@ -219,6 +248,8 @@ class MyAttendanceController extends Controller
                 'check_out'    => $checkOut,
                 'hours'        => $hours,
                 'status'       => $status,
+                'is_wfh'       => $isWfh,
+                'device_uid'   => $log->device_uid ?? null,
                 'holiday_name' => $holidayName,
             ];
         }
@@ -235,6 +266,7 @@ class MyAttendanceController extends Controller
                 'absent'  => $statAbsent,
                 'late'    => $statLate,
                 'holiday' => $statHoliday,
+                'wfh'     => $statWfh,
             ],
         ]);
     }
@@ -304,7 +336,7 @@ class MyAttendanceController extends Controller
                     'user_id'        => $emp->id,
                     'serialnumber'   => $emp->serialnumber ?? 0,
                     'fingerprint_id' => $emp->fingerprint_id,
-                    'device_uid'     => 'WEB-SELF',
+                    'device_uid'     => self::WFH_DEVICE_UID,
                     'device_branch'  => $emp->device_branch ?? null,
                     'device_dep'     => $emp->device_dep ?? null,
                     'checkindate'    => $today,

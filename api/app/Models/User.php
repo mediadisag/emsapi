@@ -30,6 +30,10 @@ class User extends Authenticatable
         'department_id',
         'company_id',   // ← fix
         'branch_id',    // ← fix
+        'alternative_mobile',   // ← new
+        'bank_name',            // ← new
+        'account_number',       // ← new
+        'ifsc_code',             // ← new        
     ];
 
     protected $hidden = [
