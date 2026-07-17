@@ -487,7 +487,8 @@ class AttendanceLogsController extends Controller
     /*
     |==========================================================================
     | POST /attendance-logs/add
-    | Admin-only — manually add an attendance entry for an employee.
+    | Super Admin / Company Admin / Department Head — manually add an
+    | attendance entry for an employee.
     | Frontend sends company_id/branch_id/department_id only to filter the
     | employee dropdown; the actual payload just needs the selected user_id.
     |==========================================================================
@@ -496,8 +497,8 @@ class AttendanceLogsController extends Controller
     {
         $user = $request->user();
 
-        // ✅ Only Super Admin (1) and Company Admin (2) can add attendance manually.
-        if (!in_array((int) $user->user_types_id, [1, 2])) {
+        // ✅ Super Admin (1), Company Admin (2), and Department Head (4) can add attendance manually.
+        if (!in_array((int) $user->user_types_id, [1, 2, 4])) {
             return response()->json([
                 'status'  => false,
                 'message' => 'You are not authorized to add attendance records.',
@@ -590,16 +591,17 @@ class AttendanceLogsController extends Controller
     /*
     |==========================================================================
     | PUT /attendance-logs/edit
-    | Admin-only — edit check-in / check-out for a grouped attendance row.
+    | Super Admin / Company Admin / Department Head — edit check-in /
+    | check-out for a grouped attendance row.
     |==========================================================================
     */
     public function updateAttendance(Request $request)
     {
         $user = $request->user();
 
-        // ✅ Only Super Admin (1) and Company Admin (2) can edit.
+        // ✅ Super Admin (1), Company Admin (2), and Department Head (4) can edit.
         // Adjust role IDs to match your user_types table.
-        if (!in_array((int) $user->user_types_id, [1, 2])) {
+        if (!in_array((int) $user->user_types_id, [1, 2, 4])) {
             return response()->json([
                 'status'  => false,
                 'message' => 'You are not authorized to edit attendance records.',

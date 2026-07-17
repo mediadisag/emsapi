@@ -162,13 +162,21 @@ class ManageUserController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
-        // Base validation
+        // ✅ FIX: Login credentials (email/password) are now required for
+        // EVERY user type, including Employee (5) — the frontend
+        // (add-employee.html) already collects and sends them for all
+        // types, but this validation previously only required them when
+        // user_types_id !== 5, so Employee-type requests could be saved
+        // without email/password. That mismatch is what was silently
+        // dropping email/password when adding an Employee.
         $rules = [
             'username'        => 'required|string',
             'gender'          => 'required|in:Male,Female',
             'department_name' => 'required|string|exists:department,department_name',
             'user_types_id'   => 'required|integer|exists:user_types,id',
-            // ✅ NEW — bank / contact details (all optional)
+            'email'           => 'required|email|unique:users,email',
+            'password'        => 'required|string|min:8',
+            // ✅ bank / contact details (all optional)
             'alternative_mobile' => 'nullable|string|max:15',
             'bank_name'           => 'nullable|string|max:100',
             'account_number'      => 'nullable|string|max:30',
@@ -176,10 +184,6 @@ class ManageUserController extends Controller
         ];
 
         $userTypeId = (int) $request->input('user_types_id');
-        if ($userTypeId !== 5) {
-            $rules['email']    = 'required|email|unique:users,email';
-            $rules['password'] = 'required|string|min:8';
-        }
 
         $request->validate($rules);
 
@@ -239,17 +243,15 @@ class ManageUserController extends Controller
             'user_types_id'  => $userTypeId,
             'company_id'     => $department->company_id,
             'branch_id'      => $department->branch_id,
-            // ✅ NEW — bank / contact details
+            // ✅ Login credentials — always saved now, for every user type
+            'email'          => $request->email,
+            'password'       => \Illuminate\Support\Facades\Hash::make($request->password),
+            // ✅ bank / contact details
             'alternative_mobile' => $request->alternative_mobile,
             'bank_name'           => $request->bank_name,
             'account_number'      => $request->account_number,
             'ifsc_code'           => $request->ifsc_code ? strtoupper($request->ifsc_code) : null,
         ];
-
-        if ($userTypeId !== 5) {
-            $userData['email']    = $request->email;
-            $userData['password'] = \Illuminate\Support\Facades\Hash::make($request->password);
-        }
 
         $user = User::create($userData);
 
@@ -316,7 +318,7 @@ class ManageUserController extends Controller
 
         $data = $request->all();
 
-        // ✅ NEW — validate bank / contact details when present on update too
+        // ✅ validate bank / contact details when present on update too
         $request->validate([
             'alternative_mobile' => 'nullable|string|max:15',
             'bank_name'           => 'nullable|string|max:100',
@@ -326,6 +328,19 @@ class ManageUserController extends Controller
 
         if (isset($data['ifsc_code']) && $data['ifsc_code']) {
             $data['ifsc_code'] = strtoupper($data['ifsc_code']);
+        }
+
+        // ✅ FIX: hash the password if the admin sent a new one on update.
+        // Previously $request->all() was passed straight into $user->update(),
+        // which would have written a plaintext password over the hashed one
+        // whenever a 'password' field was included. Now: hash if present &
+        // non-empty, drop the field entirely if blank (meaning "no change").
+        if (array_key_exists('password', $data)) {
+            if (!empty($data['password'])) {
+                $data['password'] = \Illuminate\Support\Facades\Hash::make($data['password']);
+            } else {
+                unset($data['password']);
+            }
         }
 
         if (isset($data['department_name'])) {

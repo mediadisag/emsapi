@@ -15,10 +15,15 @@ use App\Http\Controllers\Api\AttendanceReportController;
 use App\Http\Controllers\Api\AttendanceLogsController;
 use App\Http\Controllers\Api\MyAttendanceController;
 use App\Http\Controllers\Api\MyLeaveController;
+use App\Http\Controllers\Api\MyProfileController;
+use App\Http\Controllers\Api\MyDocumentsController;
 use App\Http\Controllers\Api\AdminLeaveController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\UserTypeController;
 use App\Http\Controllers\Api\HolidayController;
+use App\Http\Controllers\Api\AdminDocumentsController;
+use App\Http\Controllers\Api\TaskController;
+use App\Http\Controllers\Api\MyTaskController;
 
 
 Route::post('/login', [AuthController::class, 'login'])->name('login');
@@ -89,6 +94,22 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/my-leave-requests',  [MyLeaveController::class, 'index']);
     Route::post('/my-leave-requests', [MyLeaveController::class, 'store']);
 
+    // ✅ NEW — Employee self-service profile update (My Dashboard), strictly
+    // scoped to auth()->user()->id on the backend — no user_id param.
+    Route::get('/my-profile', [MyProfileController::class, 'show']);
+    Route::put('/my-profile', [MyProfileController::class, 'update']);
+
+    // ✅ NEW — Employee self-service document uploads (My Dashboard), strictly
+    // scoped to auth()->user()->id on the backend — no user_id param.
+    Route::get('/my-documents', [MyDocumentsController::class, 'index']);
+    Route::post('/my-documents', [MyDocumentsController::class, 'store']);
+    Route::delete('/my-documents/{id}', [MyDocumentsController::class, 'destroy']);
+
+    // ✅ NEW — Employee self-service Assigned Tasks (My Dashboard), strictly
+    // scoped to auth()->user()->id on the backend — no user_id param.
+    Route::get('/my-tasks', [MyTaskController::class, 'index']);
+    Route::post('/my-tasks/{id}/complete', [MyTaskController::class, 'complete']);
+
     // ✅ NEW — Admin review of Leave/WFH requests (approve/reject + reason)
     Route::get('/admin/leave-requests',             [AdminLeaveController::class, 'index']);
     Route::put('/admin/leave-requests/{id}/review', [AdminLeaveController::class, 'review']);
@@ -121,4 +142,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/holidays',       [HolidayController::class, 'store']);
     Route::put('/holidays/{id}',   [HolidayController::class, 'update']);
     Route::delete('/holidays/{id}',[HolidayController::class, 'destroy']);
+
+
+    Route::get('/leave-summary', [\App\Http\Controllers\Api\AdminLeaveController::class, 'summary']);
+    // New route
+    Route::post('/admin/leave-requests', [AdminLeaveController::class, 'store']);
+    // ✅ Admin review of employee documents (approve/reject + reason)
+    Route::get('/admin/documents',              [AdminDocumentsController::class, 'index']);
+    Route::put('/admin/documents/{id}/review',  [AdminDocumentsController::class, 'review']);
+
+    // ✅ NEW — Task Assignment (admin assigns a task to an employee,
+    // employee gets notified, admin later reviews completed tasks)
+    Route::post('/admin/tasks',               [TaskController::class, 'store']);
+    Route::get('/admin/tasks',                [TaskController::class, 'index']);
+    Route::put('/admin/tasks/{id}/review',    [TaskController::class, 'review']);
 });

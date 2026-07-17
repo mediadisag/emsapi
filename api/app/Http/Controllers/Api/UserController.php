@@ -70,6 +70,10 @@ class UserController extends Controller
                 'devices.device_name',
                 'users.email',
                 'users.user_types_id',
+                'users.alternative_mobile',
+                'users.bank_name',
+                'users.account_number',
+                'users.ifsc_code',
                 // ✅ NEW: human-readable user type name (e.g. "Employee", "Dept Admin")
                 'user_types.name as user_type_name',
                 DB::raw('COALESCE(department_company.name, device_company.name) as company_name'),
